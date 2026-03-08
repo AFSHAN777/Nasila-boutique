@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Nasila's Boutique | Cloud Sync</title>
+    <title>Nasila's Boutique | Cloud Pro</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <style>
@@ -28,7 +29,7 @@
         .dark-input { background: #222; color: white; border-color: var(--gold); }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; color: black; }
         th, td { padding: 10px; border: 1px solid #ddd; text-align: left; }
-        .btn-remove { background: var(--red); color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+        .btn-remove { background: var(--red); color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -58,8 +59,8 @@
     </div>
 
     <div id="billing-screen" class="screen billing-ui">
-        <input type="text" id="billCustSearch" class="dark-input" placeholder="Search Customer" oninput="validateCustomer()">
-        <p id="custVerifyMsg" style="color:#888;">Enter name to verify</p>
+        <input type="text" id="billCustSearch" class="dark-input" placeholder="Enter Customer Name" oninput="validateCustomer()">
+        <p id="custVerifyMsg"></p>
         <div class="calc-display" id="display">0</div>
         <div class="numpad">
             <button class="num-btn" onclick="press(1)">1</button><button class="num-btn" onclick="press(2)">2</button><button class="num-btn" onclick="press(3)">3</button>
@@ -78,9 +79,10 @@
     </div>
 
     <div id="editor-screen" class="screen" style="padding:20px;">
-        <h2>Management</h2>
+        <h2>Management Dashboard</h2>
         <button class="btn-home" style="background:var(--gold); color:white; margin-bottom:10px;" onclick="showScreen('cust-mgmt')">Customer Details</button>
         <button class="btn-home" style="background:var(--dark); color:var(--gold); margin-bottom:10px;" onclick="showScreen('stock-mgmt')">Stock List</button>
+        <button class="btn-home" style="background:#888; color:white; margin-bottom:10px;" onclick="showSalesHistory()">Sales History</button>
         <button class="btn-home" style="background:#555; color:white;" onclick="showScreen('home-screen')">Back</button>
     </div>
 
@@ -95,11 +97,13 @@
 
     <div id="stock-mgmt" class="screen" style="padding:20px;">
         <h3>Inventory Editor</h3>
-        <input type="text" id="sCode" placeholder="Code">
-        <input type="text" id="sName" placeholder="Item Name">
-        <input type="number" id="sPrice" placeholder="Price">
-        <input type="number" id="sQty" placeholder="Qty">
-        <button class="btn-shop" onclick="saveStock()">Save Product</button>
+        <div style="background:white; padding:15px; border-radius:8px; border:1px solid #ddd;">
+            <input type="text" id="sCode" placeholder="Item Code">
+            <input type="text" id="sName" placeholder="Item Name">
+            <input type="number" id="sPrice" placeholder="Price ₹">
+            <input type="number" id="sQty" placeholder="Quantity">
+            <button class="btn-shop" style="width:100%;" onclick="saveStock()">SAVE PRODUCT</button>
+        </div>
         <table id="stockTable"><thead><tr><th>Code</th><th>Name</th><th>Price</th><th>Qty</th><th>Action</th></tr></thead><tbody></tbody></table>
         <button class="btn-shop" style="background:#444; margin-top:10px;" onclick="showScreen('editor-screen')">Back</button>
     </div>
@@ -121,15 +125,14 @@
 
         let products = {};
         let customers = [];
+        let salesHistory = [];
         let cart = [];
         let displayVal = "";
 
-        db.ref('products').on('value', (s) => { 
-            products = s.val() || {}; 
-            renderStock(); renderStore(); 
-            document.getElementById('sync-indicator').style.color = "lightgreen";
-        });
+        // SYNC DATA FROM CLOUD
+        db.ref('products').on('value', (s) => { products = s.val() || {}; renderStock(); renderStore(); document.getElementById('sync-indicator').style.color = "lightgreen"; });
         db.ref('customers').on('value', (s) => { customers = s.val() || []; renderCustomers(); });
+        db.ref('sales').on('value', (s) => { salesHistory = s.val() || []; });
 
         function showScreen(id) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -139,29 +142,63 @@
         function press(n) { displayVal += n; updateDisp(); }
         function updateDisp() { document.getElementById('display').innerText = displayVal || "0"; }
 
+        function addToCart() {
+            if(products[displayVal]) { cart.push({...products[displayVal], code: displayVal}); renderCart(); }
+            else { alert("Code not found!"); }
+            displayVal = ""; updateDisp();
+        }
+
+        function renderCart() {
+            let t = document.getElementById('billTable'); let total = 0; t.innerHTML = "";
+            cart.forEach((item, i) => { total += item.price; t.innerHTML += `<tr><td style="color:white">${item.name}</td><td><button class="btn-remove" onclick="cart.splice(${i},1);renderCart()">X</button></td></tr>`; });
+            document.getElementById('billTotal').innerText = "Total: ₹" + total;
+            validateCustomer();
+        }
+
+        function validateCustomer() {
+            let input = document.getElementById('billCustSearch').value.trim().toLowerCase();
+            let found = customers.find(c => c.name.toLowerCase() === input);
+            let msg = document.getElementById('custVerifyMsg');
+            msg.innerText = found ? "Verified: " + found.name : "Search customer to pay";
+            msg.style.color = found ? "lightgreen" : "#888";
+            document.getElementById('payment-area').style.display = found ? "block" : "none";
+        }
+
+        function toggleFinish() { document.getElementById('finishBtn').style.display = document.getElementById('billRec').value ? "block" : "none"; }
+
+        function completeSale() {
+            let total = parseInt(document.getElementById('billTotal').innerText.replace("Total: ₹",""));
+            let rec = parseInt(document.getElementById('billRec').value) || 0;
+            let custInput = document.getElementById('billCustSearch').value.toLowerCase();
+            let found = customers.find(c => c.name.toLowerCase() === custInput);
+            
+            if(found && rec < total) found.balance = (found.balance || 0) + (total - rec);
+            cart.forEach(item => { if(products[item.code]) products[item.code].qty--; });
+            
+            salesHistory.push({total, rec, date: new Date().toLocaleString(), customer: found ? found.name : custInput});
+            
+            db.ref('products').set(products);
+            db.ref('customers').set(customers);
+            db.ref('sales').set(salesHistory);
+            
+            alert("Sale Complete & Synced!");
+            location.reload();
+        }
+
         function saveStock() {
             let code = document.getElementById('sCode').value;
             if(!code) return;
-            products[code] = {
-                name: document.getElementById('sName').value,
-                price: parseInt(document.getElementById('sPrice').value) || 0,
-                qty: parseInt(document.getElementById('sQty').value) || 0
-            };
+            products[code] = { name: document.getElementById('sName').value, price: parseInt(document.getElementById('sPrice').value) || 0, qty: parseInt(document.getElementById('sQty').value) || 0 };
             db.ref('products').set(products);
             document.getElementById('sCode').value = ''; document.getElementById('sName').value = '';
         }
-
-        function removeProduct(code) { if(confirm("Delete?")) { delete products[code]; db.ref('products').set(products); } }
 
         function renderStock() {
             let b = document.querySelector('#stockTable tbody'); b.innerHTML = "";
             for(let id in products) { b.innerHTML += `<tr><td>${id}</td><td>${products[id].name}</td><td>₹${products[id].price}</td><td>${products[id].qty}</td><td><button class="btn-remove" onclick="removeProduct('${id}')">X</button></td></tr>`; }
         }
 
-        function renderStore() {
-            let g = document.getElementById('store-grid'); g.innerHTML = "";
-            for(let id in products) { g.innerHTML += `<div style="background:white; padding:10px; border-radius:8px;"><h4>${products[id].name}</h4><p>₹${products[id].price}</p><p>Stock: ${products[id].qty}</p></div>`; }
-        }
+        function removeProduct(code) { if(confirm("Delete?")) { delete products[code]; db.ref('products').set(products); } }
 
         function addCustomer() {
             let name = document.getElementById('cName').value;
@@ -178,47 +215,23 @@
 
         function removeCustomer(i) { if(confirm("Delete?")) { customers.splice(i, 1); db.ref('customers').set(customers); } }
 
-        function addToCart() {
-            if(products[displayVal]) { cart.push({...products[displayVal], code: displayVal}); renderCart(); }
-            else { alert("Product not found!"); }
-            displayVal = ""; updateDisp();
+        function renderStore() {
+            let g = document.getElementById('store-grid'); g.innerHTML = "";
+            for(let id in products) { g.innerHTML += `<div style="background:white; padding:10px; border-radius:8px;"><h4>${products[id].name}</h4><p>₹${products[id].price}</p><p>Stock: ${products[id].qty}</p></div>`; }
         }
 
-        function renderCart() {
-            let t = document.getElementById('billTable'); let total = 0; t.innerHTML = "";
-            cart.forEach((item, i) => { total += item.price; t.innerHTML += `<tr><td style="color:white">${item.name}</td><td><button class="btn-remove" onclick="cart.splice(${i},1);renderCart()">X</button></td></tr>`; });
-            document.getElementById('billTotal').innerText = "Total: ₹" + total;
-            validateCustomer();
-        }
-
-        function validateCustomer() {
-            let input = document.getElementById('billCustSearch').value.trim().toLowerCase();
-            let found = customers.find(c => c.name.toLowerCase() === input);
-            document.getElementById('custVerifyMsg').innerText = found ? "Verified: " + found.name : "Search customer to pay";
-            document.getElementById('payment-area').style.display = found ? "block" : "none";
-        }
-
-        function toggleFinish() { document.getElementById('finishBtn').style.display = document.getElementById('billRec').value ? "block" : "none"; }
-
-        function completeSale() {
-            let total = parseInt(document.getElementById('billTotal').innerText.replace("Total: ₹",""));
-            let rec = parseInt(document.getElementById('billRec').value) || 0;
-            let custInput = document.getElementById('billCustSearch').value.toLowerCase();
-            let found = customers.find(c => c.name.toLowerCase() === custInput);
-            
-            if(found && rec < total) found.balance += (total - rec);
-            cart.forEach(item => { if(products[item.code]) products[item.code].qty--; });
-            
-            db.ref('products').set(products);
-            db.ref('customers').set(customers);
-            alert("Sale Complete & Synced!");
-            location.reload();
+        function showSalesHistory() {
+            let txt = salesHistory.length ? salesHistory.map(s => `${s.date}: ₹${s.total} - ${s.customer}`).join("\n") : "No sales history.";
+            alert(txt);
         }
     </script>
 </body>
 </html>
 
 
+
+    
+          
 
     
             
