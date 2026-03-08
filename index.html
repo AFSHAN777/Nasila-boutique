@@ -105,7 +105,6 @@
     </div>
 
     <script>
-        // CONFIG FROM YOUR FIREBASE SETUP
         const firebaseConfig = {
           apiKey: "AIzaSyBR50RqhskA5sw048QfvMOHGz_qsBTACvQ",
           authDomain: "nasila-boutique.firebaseapp.com",
@@ -114,7 +113,7 @@
           messagingSenderId: "654370810451",
           appId: "1:654370810451:web:4f251f7585d50cd025f4a6",
           measurementId: "G-1BL2CEYECF",
-          databaseURL: "https://nasila-boutique-default-rtdb.firebaseio.com/"
+          databaseURL: "https://nasila-boutique-default-rtdb.asia-southeast1.firebasedatabase.app/"
         };
 
         firebase.initializeApp(firebaseConfig);
@@ -125,7 +124,6 @@
         let cart = [];
         let displayVal = "";
 
-        // SYNC DATA ACROSS DEVICES
         db.ref('products').on('value', (s) => { 
             products = s.val() || {}; 
             renderStock(); renderStore(); 
@@ -219,6 +217,7 @@
     </script>
 </body>
 </html>
+
 
 
     
